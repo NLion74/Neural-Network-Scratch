@@ -28,10 +28,10 @@ impl NeuralNetwork { pub fn new(input_size: usize, hidden_size: usize, output_si
             input_size,
             hidden_size,
             output_size,
-            W1: Array::random((input_size, hidden_size), Uniform::new(-0.5, 0.5)),
-            W2: Array::random((hidden_size, output_size), Uniform::new(-0.5, 0.5)),
-            b1: Array::random(hidden_size, Uniform::new(-0.5, 0.5)),
-            b2: Array::random(output_size, Uniform::new(-0.5, 0.5)),
+            W1: Array::random((input_size, hidden_size), Uniform::new(-1.0, 1.0)),
+            W2: Array::random((hidden_size, output_size), Uniform::new(-1.0, 1.0)),
+            b1: Array::random(hidden_size, Uniform::new(-1.0, 1.0)),
+            b2: Array::random(output_size, Uniform::new(-1.0, 1.0)),
         }
     }
 
@@ -45,10 +45,31 @@ impl NeuralNetwork { pub fn new(input_size: usize, hidden_size: usize, output_si
         let A1 = Z1.mapv(|z| Self::sigmoid(z));
 
         // Pass the output of the hidden layer Z1 through the output layer Z2 with weights W2 and biases b2. We multiply the output of the hidden layer Z1 with the weights W2 and add the biases b2.
-        let Z2 = Z1.dot(&self.W2) + &self.b2;
+        let Z2 = A1.dot(&self.W2) + &self.b2;
         let A2 = Z2.mapv(|z| Self::sigmoid(z));
 
         Ok((Z1, A1, Z2, A2))
+    }
+
+    fn cost_function(&self, y_true: &Array1<f64>, y_pred: &Array1<f64>) -> f64 {
+        // Clip the predicted values to avoid log(0) or log(1).
+        let epsilon = 1e-15;
+        let y_pred_clipped = y_pred.mapv(|p| p.max(epsilon).min(1.0 - epsilon));
+        
+        
+        // Compute the cross-entropy loss average.
+        let mut total_loss = 0.0;
+
+        for (&true_val, &pred_val) in y_true.iter().zip(y_pred_clipped.iter()) {
+            let loss_for_example = if true_val == 1.0 {
+                -pred_val.ln()
+            } else {
+                -(1.0 - pred_val).ln()
+            };
+            total_loss += loss_for_example;
+        }
+
+        total_loss / y_true.len() as f64
     }
 
 }
@@ -143,7 +164,18 @@ fn main() -> Result<(), io::Error> {
     };
     
     println!("\nFeed forward successful:");
-    println!("Z1: {:?}\nA1: {:?}\nZ2: {:?}\nA2: {:?}", Z1, A1, Z2, A2);
+    for i in 0..10 {
+        println!("{}: {}", i, A2[i]);
+    }
+
+    println!("\nActual labels:");
+    for i in 0..10 {
+        println!("{}: {}", i, y_train[[0, i]]);
+    }
+
+    let mut cost = neural_network.cost_function(&y_train.row(0).to_owned(), &A2);
+
+    println!("\nCost function: {}", cost);
 
     // implement back propagation.
     // Implement training function with cost function.

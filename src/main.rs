@@ -35,43 +35,57 @@ impl NeuralNetwork { pub fn new(input_size: usize, hidden_size: usize, output_si
         }
     }
 
-    fn sigmoid(z: f64) -> f64 {
-        1.0 / (1.0 + (-z).exp())
+    fn sigmoid(z: &Array1<f64>) -> Array1<f64> {
+        1.0 / (1.0 + (-z).mapv(f64::exp))
+    }
+
+    fn sigmoid_derivative(z: &Array1<f64>) -> Array1<f64> {
+        let sig = Self::sigmoid(z);
+        sig.clone() * (1.0 - sig)
+    }
+
+    fn binary_cross_entropy_loss(&self, y_true: &Array1<f64>, y_pred: &Array1<f64>) -> f64 {
+        let epsilon = 1e-15;
+        let y_pred_clipped = y_pred.mapv(|p| p.max(epsilon).min(1.0 - epsilon));
+        let loss = y_true * y_pred_clipped.mapv(|p| p.ln()) + (1.0 - y_true) * (1.0 - y_pred_clipped).mapv(|p| p.ln());
+        -loss.mean().unwrap()
     }
 
     fn feed_forward(&self, X: Array1<f64>) -> Result<(Array1<f64>, Array1<f64>, Array1<f64>, Array1<f64>), io::Error> {
-        // Pass the input X through the hidden layer Z1 with weights W1 and biases b1. We multiply the input X with the weights W1 and add the biases b1.
-        let Z1 = X.dot(&self.W1) + &self.b1;
-        let A1 = Z1.mapv(|z| Self::sigmoid(z));
-
-        // Pass the output of the hidden layer Z1 through the output layer Z2 with weights W2 and biases b2. We multiply the output of the hidden layer Z1 with the weights W2 and add the biases b2.
-        let Z2 = A1.dot(&self.W2) + &self.b2;
-        let A2 = Z2.mapv(|z| Self::sigmoid(z));
-
-        Ok((Z1, A1, Z2, A2))
-    }
-
-    fn cost_function(&self, y_true: &Array1<f64>, y_pred: &Array1<f64>) -> f64 {
-        // Clip the predicted values to avoid log(0) or log(1).
-        let epsilon = 1e-15;
-        let y_pred_clipped = y_pred.mapv(|p| p.max(epsilon).min(1.0 - epsilon));
-        
-        
-        // Compute the cross-entropy loss average.
-        let mut total_loss = 0.0;
-
-        for (&true_val, &pred_val) in y_true.iter().zip(y_pred_clipped.iter()) {
-            let loss_for_example = if true_val == 1.0 {
-                -pred_val.ln()
-            } else {
-                -(1.0 - pred_val).ln()
-            };
-            total_loss += loss_for_example;
+        // Pass the input X through the hidden layer Z1 with weights W1 and biases b1.
+        let Z1 = X.dot(&self.W1) + &self.b1; // Calculate Z1: input * weights + biases
+        let A1 = Self::sigmoid(&Z1); // Apply the sigmoid activation function to Z1
+    
+        // Pass the output of the hidden layer Z1 through the output layer Z2 with weights W2 and biases b2.
+        let Z2 = A1.dot(&self.W2) + &self.b2; // Calculate Z2: A1 * W2 + b2
+        let A2 = Self::sigmoid(&Z2); // Apply the sigmoid activation function to Z2
+    
+        Ok((Z1, A1, Z2, A2)) // Return the computed values
         }
 
-        total_loss / y_true.len() as f64
-    }
+    fn back_propagation(&mut self, X: &Array1<f64>, y: &Array1<f64>, Z1: &Array1<f64>, A1: &Array1<f64>, Z2: &Array1<f64>, A2: &Array1<f64>, learning_rate: f64) {
+        // Output layer error
+        let dA2 = A2 - y; 
+        // Gradient at output layer
+        let dZ2 = dA2.clone() * Self::sigmoid_derivative(Z2);
 
+        // Gradients for W2 and b2
+        let dW2 = A1.clone().insert_axis(Axis(1)).dot(&dZ2.clone().insert_axis(Axis(0))); // Shape: (hidden_size, output_size)
+        let db2 = dZ2.clone(); // Shape: (output_size,)
+
+        // Hidden layer gradients
+        let dZ1 = dZ2.dot(&self.W2.t()) * Self::sigmoid_derivative(Z1);
+
+        // Gradients for W1 and b1
+        let dW1 = X.clone().insert_axis(Axis(1)).dot(&dZ1.clone().insert_axis(Axis(0))); // Shape: (input_size, hidden_size)
+        let db1 = dZ1.clone(); // Shape: (hidden_size,)
+
+        // Update weights and biases by multiplying by learning rate
+        self.W1 -= &(learning_rate * &dW1); // Update weights W1
+        self.W2 -= &(learning_rate * &dW2); // Update weights W2
+        self.b1 -= &(learning_rate * &db1); // Update biases b1
+        self.b2 -= &(learning_rate * &db2); // Update biases b2
+    }
 }
 
 fn read_u32_from_file(file: &mut File) -> Result<u32, io::Error> {
@@ -155,14 +169,13 @@ fn main() -> Result<(), io::Error> {
 
     // Feed training data through the network to check if the feed forward works for now.
     let first_row = x_train.row(0).to_owned();
-    let (Z1, A1, Z2, A2) = match neural_network.feed_forward(first_row) {
+    let (Z1, A1, Z2, A2) = match neural_network.feed_forward(first_row.clone()) {
         Ok(data) => data,
         Err(e) => {
             eprintln!("Failed to feed forward: {}", e);
             return Err(e);
         }
     };
-    
     println!("\nFeed forward successful:");
     for i in 0..10 {
         println!("{}: {}", i, A2[i]);
@@ -173,14 +186,12 @@ fn main() -> Result<(), io::Error> {
         println!("{}: {}", i, y_train[[0, i]]);
     }
 
-    let mut cost = neural_network.cost_function(&y_train.row(0).to_owned(), &A2);
+    let mut L = neural_network.binary_cross_entropy_loss(&y_train.row(0).to_owned(), &A2);
 
-    println!("\nCost function: {}", cost);
+    println!("\nCost function: {}", L);
 
-    // implement back propagation.
-    // Implement training function with cost function.
-
-
+    neural_network.back_propagation(&first_row, &y_train.row(0).to_owned(), &Z1, &A1, &Z2, &A2, 0.01);
+    
     // Train the network
     // let epochs = 1000;
     // nn.train(&X_train, &y_train, epochs);

@@ -254,54 +254,5 @@ fn main() -> Result<(), io::Error> {
     let test_accuracy = neural_network.accuracy(&x_test, &y_test);
     println!("\nTest accuracy: {:.2}%", test_accuracy);
 
-    // Test the network on the test data
-    // for i in 0..x_test.nrows() {
-    //     let x = x_test.row(i).to_owned();
-    //     let y = y_test.row(i).to_owned();
-
-    //     let (_, _, _, A2) = match neural_network.feed_forward(x.clone()) {
-    //         Ok(data) => data,
-    //         Err(e) => {
-    //             eprintln!("Feed forward error: {}", e);
-    //             continue;
-    //         }
-    //     };
-
-    //     println!("Prediction: {}, Actual: {}", A2, y);
-    // }
-
-    // Feed training data through the network to check if the feed forward works for now.
-    // let first_row = x_train.row(0).to_owned();
-    // let (Z1, A1, Z2, A2) = match neural_network.feed_forward(first_row.clone()) {
-    //     Ok(data) => data,
-    //     Err(e) => {
-    //         eprintln!("Failed to feed forward: {}", e);
-    //         return Err(e);
-    //     }
-    // };
-    // println!("\nFeed forward successful:");
-    // for i in 0..10 {
-    //     println!("{}: {}", i, A2[i]);
-    // }
-
-    // println!("\nActual labels:");
-    // for i in 0..10 {
-    //     println!("{}: {}", i, y_train[[0, i]]);
-    // }
-
-    // let mut L = neural_network.binary_cross_entropy_loss(&y_train.row(0).to_owned(), &A2);
-
-    // println!("\nCost function: {}", L);
-
-    // neural_network.back_propagation(&first_row, &y_train.row(0).to_owned(), &Z1, &A1, &Z2, &A2, 0.01);
-
-    // Train the network
-    // let epochs = 1000;
-    // nn.train(&X_train, &y_train, epochs);
-
-    // Predict on a test sample (dummy example)
-    // let test_sample = X_train.slice(s![0, ..]).to_owned();
-    // let prediction = nn.predict(&test_sample);
-    // println!("Predicted label: {}", prediction);
     Ok(())
 }

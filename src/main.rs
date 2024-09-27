@@ -117,10 +117,6 @@ impl NeuralNetwork { pub fn new(input_size: usize, hidden_size: usize, output_si
 
                 // Backpropagation
                 self.back_propagation(&x, &y, &Z1, &A1, &Z2, &A2, learning_rate);
-
-                if i % 10000 == 0 {
-                    println!("Loss = {}", total_loss / (i + 1) as f64);
-                }
             }
 
             // Average loss for the epoch
@@ -243,7 +239,7 @@ fn main() -> Result<(), io::Error> {
     println!("\nNeural network initialized successfully");
 
     // Train the network for a specified number of epochs
-    let epochs = 1;
+    let epochs = 100;
     let learning_rate = 0.01;
 
     neural_network.train(&x_train, &y_train, epochs, learning_rate);
@@ -253,6 +249,10 @@ fn main() -> Result<(), io::Error> {
     // Calculate accuracy on the test dataset
     let test_accuracy = neural_network.accuracy(&x_test, &y_test);
     println!("\nTest accuracy: {:.2}%", test_accuracy);
+
+    // Add option to load and save models
+    // Add user input to train the model, add options for epochs, learning rate and at auto mode which detects when the model has converged
+    // Add option to predict on a single image after another model has been loaded
 
     Ok(())
 }

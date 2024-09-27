@@ -51,7 +51,15 @@ impl NeuralNetwork { pub fn new(input_size: usize, hidden_size: usize, output_si
         -loss.mean().unwrap()
     }
 
-    fn feed_forward(&self, X: Array1<f64>) -> Result<(Array1<f64>, Array1<f64>, Array1<f64>, Array1<f64>), io::Error> {
+    fn feed_forward(&self, X: Array1<f64>) -> Result<(Array1<f64>, Array1<f64>, Array1<f64>, Array1<f64>), String> {
+        if X.len() != self.input_size {
+            return Err(format!(
+                "Input size mismatch: expected {}, got {}",
+                self.input_size,
+                X.len()
+            ));
+        }
+
         // Pass the input X through the hidden layer Z1 with weights W1 and biases b1.
         let Z1 = X.dot(&self.W1) + &self.b1; // Calculate Z1: input * weights + biases
         let A1 = Self::sigmoid(&Z1); // Apply the sigmoid activation function to Z1
@@ -86,6 +94,41 @@ impl NeuralNetwork { pub fn new(input_size: usize, hidden_size: usize, output_si
         self.b1 -= &(learning_rate * &db1); // Update biases b1
         self.b2 -= &(learning_rate * &db2); // Update biases b2
     }
+
+    pub fn train(&mut self, X_train: &Array2<f64>, y_train: &Array2<f64>, epochs: usize, learning_rate: f64) {
+        for epoch in 0..epochs {
+            let mut total_loss = 0.0;
+
+            for i in 0..X_train.nrows() {
+                let x = X_train.row(i).to_owned();
+                let y = y_train.row(i).to_owned();
+
+                // Feed forward
+                let (Z1, A1, Z2, A2) = match self.feed_forward(x.clone()) {
+                    Ok(data) => data,
+                    Err(e) => {
+                        eprintln!("Feed forward error: {}", e);
+                        continue; // Skip this iteration
+                    }
+                };
+
+                // Calculate loss
+                total_loss += self.binary_cross_entropy_loss(&y, &A2);
+
+                // Backpropagation
+                self.back_propagation(&x, &y, &Z1, &A1, &Z2, &A2, learning_rate);
+
+                if i % 1000 == 0 {
+                    println!("Loss = {}", total_loss / (i + 1) as f64);
+                }
+            }
+
+            // Average loss for the epoch
+            total_loss /= X_train.nrows() as f64;
+            println!("Epoch {}: Loss = {}", epoch + 1, total_loss);
+        }
+    }
+
 }
 
 fn read_u32_from_file(file: &mut File) -> Result<u32, io::Error> {
@@ -167,31 +210,39 @@ fn main() -> Result<(), io::Error> {
     // The weights and biases are set at random.
     let mut neural_network = NeuralNetwork::new(784, 64, 10);
 
+    // Train the network for a specified number of epochs
+    let epochs = 1;
+    let learning_rate = 0.01;
+
+    neural_network.train(&x_train, &y_train, epochs, learning_rate);
+
+    neural_network.feed_forward(x_test.row(0).to_owned());
+
     // Feed training data through the network to check if the feed forward works for now.
-    let first_row = x_train.row(0).to_owned();
-    let (Z1, A1, Z2, A2) = match neural_network.feed_forward(first_row.clone()) {
-        Ok(data) => data,
-        Err(e) => {
-            eprintln!("Failed to feed forward: {}", e);
-            return Err(e);
-        }
-    };
-    println!("\nFeed forward successful:");
-    for i in 0..10 {
-        println!("{}: {}", i, A2[i]);
-    }
+    // let first_row = x_train.row(0).to_owned();
+    // let (Z1, A1, Z2, A2) = match neural_network.feed_forward(first_row.clone()) {
+    //     Ok(data) => data,
+    //     Err(e) => {
+    //         eprintln!("Failed to feed forward: {}", e);
+    //         return Err(e);
+    //     }
+    // };
+    // println!("\nFeed forward successful:");
+    // for i in 0..10 {
+    //     println!("{}: {}", i, A2[i]);
+    // }
 
-    println!("\nActual labels:");
-    for i in 0..10 {
-        println!("{}: {}", i, y_train[[0, i]]);
-    }
+    // println!("\nActual labels:");
+    // for i in 0..10 {
+    //     println!("{}: {}", i, y_train[[0, i]]);
+    // }
 
-    let mut L = neural_network.binary_cross_entropy_loss(&y_train.row(0).to_owned(), &A2);
+    // let mut L = neural_network.binary_cross_entropy_loss(&y_train.row(0).to_owned(), &A2);
 
-    println!("\nCost function: {}", L);
+    // println!("\nCost function: {}", L);
 
-    neural_network.back_propagation(&first_row, &y_train.row(0).to_owned(), &Z1, &A1, &Z2, &A2, 0.01);
-    
+    // neural_network.back_propagation(&first_row, &y_train.row(0).to_owned(), &Z1, &A1, &Z2, &A2, 0.01);
+
     // Train the network
     // let epochs = 1000;
     // nn.train(&X_train, &y_train, epochs);

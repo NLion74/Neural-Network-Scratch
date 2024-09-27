@@ -118,7 +118,7 @@ impl NeuralNetwork { pub fn new(input_size: usize, hidden_size: usize, output_si
                 // Backpropagation
                 self.back_propagation(&x, &y, &Z1, &A1, &Z2, &A2, learning_rate);
 
-                if i % 1000 == 0 {
+                if i % 10000 == 0 {
                     println!("Loss = {}", total_loss / (i + 1) as f64);
                 }
             }
@@ -129,6 +129,36 @@ impl NeuralNetwork { pub fn new(input_size: usize, hidden_size: usize, output_si
         }
     }
 
+    fn accuracy(&self, X: &Array2<f64>, y: &Array2<f64>) -> f64 {
+        let mut correct_predictions = 0;
+
+        for i in 0..X.nrows() {
+            let x = X.row(i).to_owned();
+
+            // Feed forward to get the predicted output
+            let (_, _, _, A2) = self.feed_forward(x).expect("Feed forward failed");
+
+            // Get the predicted class (index of the highest value)
+            let predicted_class = A2.iter().cloned().enumerate()
+            .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
+            .map(|(index, _)| index)
+            .unwrap();
+
+            // Get the actual class index from one-hot encoded labels
+            let actual_class = y.row(i).iter().cloned().enumerate()
+                .find(|&(_, value)| value == 1.0)
+                .map(|(index, _)| index)
+                .unwrap();
+
+            // Compare with the actual class
+            if predicted_class == actual_class {
+                correct_predictions += 1;
+            }
+        }
+
+        // Calculate accuracy as a percentage
+        correct_predictions as f64 / X.nrows() as f64 * 100.0
+    }
 }
 
 fn read_u32_from_file(file: &mut File) -> Result<u32, io::Error> {
@@ -210,13 +240,35 @@ fn main() -> Result<(), io::Error> {
     // The weights and biases are set at random.
     let mut neural_network = NeuralNetwork::new(784, 64, 10);
 
+    println!("\nNeural network initialized successfully");
+
     // Train the network for a specified number of epochs
     let epochs = 1;
     let learning_rate = 0.01;
 
     neural_network.train(&x_train, &y_train, epochs, learning_rate);
 
-    neural_network.feed_forward(x_test.row(0).to_owned());
+    println!("\nTraining complete");
+
+    // Calculate accuracy on the test dataset
+    let test_accuracy = neural_network.accuracy(&x_test, &y_test);
+    println!("\nTest accuracy: {:.2}%", test_accuracy);
+
+    // Test the network on the test data
+    // for i in 0..x_test.nrows() {
+    //     let x = x_test.row(i).to_owned();
+    //     let y = y_test.row(i).to_owned();
+
+    //     let (_, _, _, A2) = match neural_network.feed_forward(x.clone()) {
+    //         Ok(data) => data,
+    //         Err(e) => {
+    //             eprintln!("Feed forward error: {}", e);
+    //             continue;
+    //         }
+    //     };
+
+    //     println!("Prediction: {}, Actual: {}", A2, y);
+    // }
 
     // Feed training data through the network to check if the feed forward works for now.
     // let first_row = x_train.row(0).to_owned();

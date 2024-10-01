@@ -1,5 +1,8 @@
 # Rust-Neural-Network
-A Neural Network implemented from scratch written in Rust. The Neural Network is trained on the MNIST Dataset and can achieve up to 96.5% accuracy across test results.
+This project is a simple neural network implementation from scratch built in Rust, designed to work with the MNIST dataset of handwritten digits. The neural network achieves an accuracy of up to ~96.8% on the test set. The project was created to build a deeper understanding of neural networks.
+
+A pre-trained model file, model.bin, is included in the repository.
+For optimal performance, compile the project in release mode, as it may run slowly in debug mode.
 
 # Getting started
 ```

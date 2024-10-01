@@ -1,20 +1,19 @@
+extern crate serde_derive;
 extern crate rand;
 extern crate ndarray_rand;
 extern crate ndarray;
-//extern crate bincode;
-//extern crate serde;
+extern crate bincode;
 
-//use std::fs::File;
-//use std::io::{self, Write, Read};
-//use std::path::PathBuf;
+use std::fs::File;
+use std::io::{self, Write, Read};
+use std::path::PathBuf;
 use ndarray::{Array2, Array1};
 use ndarray_rand::RandomExt;
 use ndarray_rand::rand_distr::Uniform;
 use ndarray::prelude::*;
-//use crate::serde::{Serialize, Deserialize};
-//use serde::{Serialize, Deserialize};
+use serde_derive::{Serialize, Deserialize};
 
-//#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct NeuralNetwork {
     pub input_size: usize,
     pub hidden_size: usize,
@@ -37,21 +36,39 @@ impl NeuralNetwork { pub fn new(input_size: usize, hidden_size: usize, output_si
         }
     }
 
-    // pub fn save(&self, path: &PathBuf) -> io::Result<()> {
-    //     let data = bincode::serialize(&self)?;
-    //     let mut file = File::create(path)?;
-    //     file.write_all(&data)?;
-    //     Ok(())
-    // }
+    pub fn load(path: &PathBuf) -> io::Result<NeuralNetwork> {
+        let mut file = File::open(path)?;
 
-    // Function to load the neural network from a file
-    // pub fn load(file_path: &str) -> Result<Self, Box<dyn std::error::Error>> {
-    //     let mut file = File::open(file_path)?;
-    //     let mut serialized = Vec::new();
-    //     file.read_to_end(&mut serialized)?; // Read the file into a vector
-    //     let network: NeuralNetwork = bincode::deserialize(&serialized)?; // Deserialize the vector into the struct
-    //     Ok(network)
-    // }
+        let mut buffer = Vec::new();
+        file.read_to_end(&mut buffer)?;
+
+        let network: NeuralNetwork = bincode::deserialize(&buffer).map_err(|e| {
+            io::Error::new(io::ErrorKind::Other, format!("Deserialization error: {:?}", e))
+        })?;
+
+        if network.input_size != 784 || network.output_size != 10 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!(
+                    "Invalid network dimensions: expected 784 inputs and 10 outputs, got {} inputs and {} outputs",
+                    network.input_size, network.output_size
+                ),
+            ));
+        }
+
+        Ok(network)
+    }
+
+    pub fn save(&self, path: &PathBuf) -> io::Result<()> {
+        let data = bincode::serialize(&self).map_err(|e| {
+            io::Error::new(io::ErrorKind::Other, format!("Serialization error: {:?}", e))
+        })?;
+
+        let mut file = File::create(path)?;
+        file.write_all(&data)?;
+
+        Ok(())
+    }
 
     fn sigmoid(z: &Array1<f64>) -> Array1<f64> {
         1.0 / (1.0 + (-z).mapv(f64::exp))
@@ -87,7 +104,7 @@ impl NeuralNetwork { pub fn new(input_size: usize, hidden_size: usize, output_si
         let Z2 = A1.dot(&self.W2) + &self.b2; // Calculate Z2: A1 * w2 + b2
         let A2 = Self::sigmoid(&Z2); // Apply the sigmoid activation function to Z2
     
-        Ok((Z1, A1, Z2, A2)) // Return the computed values
+        Ok((Z1, A1, Z2, A2))
         }
 
     pub fn back_propagation(&mut self, X: &Array1<f64>, y: &Array1<f64>, Z1: &Array1<f64>, A1: &Array1<f64>, Z2: &Array1<f64>, A2: &Array1<f64>, learning_rate: f64) {

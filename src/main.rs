@@ -55,16 +55,27 @@ fn load_mnist_data(images_path: PathBuf, labels_path: PathBuf) -> Result<(Array2
     Ok((images, labels))
 }
 
-fn main() -> Result<(), io::Error> {
-    print!("Please enter the path to the MNIST dataset (defaults to './dataset'): ");
-    io::stdout().flush().unwrap();
+fn get_user_input(prompt: &str) -> String {
+    print!("{}", prompt);
+    io::stdout().flush();
+
     let mut input = String::new();
     io::stdin().read_line(&mut input).expect("Failed to read input");
+    input.trim().to_string()
+}
 
-    let path = if input.trim().is_empty() {
+fn main() -> Result<(), io::Error> {
+    println!("Welcome to the MNIST Neural-Network-Scratch!");
+    println!("Note: For optimal performance, please compile the project in release mode, as it may run slowly in debug mode.");
+
+    // User prompt to provide dataset path
+    let mut input = String::new();
+    input = get_user_input("Enter the path to the MNIST dataset (or press Enter for the default './dataset'): ");
+
+    let path = if input.is_empty() {
         "./dataset".to_string()
     } else {
-        input.trim().to_string()
+        input.to_string()
     };
 
     // We load the mnist dataset and have X train which is a 2D array with 60000 rows and 784 columns.
@@ -78,61 +89,87 @@ fn main() -> Result<(), io::Error> {
     let (x_train, y_train) = match load_mnist_data(train_images_path, train_labels_path) {
         Ok(data) => data,
         Err(e) => {
-            eprintln!("Failed to load training data: {}", e);
+            eprintln!("Error loading training data: {}", e);
             return Err(e);
         }
     };
-
     let (x_test, y_test) = match load_mnist_data(test_images_path, test_labels_path) {
         Ok(data) => data,
         Err(e) => {
-            eprintln!("Failed to load test data: {}", e);
+            eprintln!("Error loading test data: {}", e);
             return Err(e);
         }
     };
 
     println!("Successfully loaded training and test data from: '{}'", path);
 
-    // We initialize the neural network with 784 input neurons, 64 hidden neurons and 10 output neurons.
-    // The weights and biases are set at random.
-    let mut neural_network = NeuralNetwork::new(784, 64, 10);
+    // User prompt for initializing or loading network
+    let mut neural_network: NeuralNetwork;
+    loop {
+        input = get_user_input("\nPress Enter to initialize a new network or provide a file path to load an existing one: ");
 
-    println!("\nNeural network initialized succesfully with input size: {}, hidden size: {}, output size: {}", neural_network.input_size, neural_network.hidden_size, neural_network.output_size);
-    
-    let mut epochs: Option<usize> = None;
-    input.clear();
-    while epochs.is_none() {
-        print!("For how many epochs do you wish to train the network? (positive integer): ");
-        io::stdout().flush().unwrap();
+        if input.is_empty() {
+            let input_size = 784;
+            let hidden_size = 64;
+            let output_size = 10;
+            neural_network = NeuralNetwork::new(input_size, hidden_size, output_size);
 
-        input.clear();
-        io::stdin().read_line(&mut input).expect("Failed to read input");
-
-        match input.trim().parse::<usize>() {
-            Ok(n) if n > 0 => epochs = Some(n), 
-            _ => println!("Invalid input. Please enter a valid positive integer."),
+            println!("Neural network initialized successfully with input size: {}, hidden size: {}, output size: {}.", 
+                neural_network.input_size, neural_network.hidden_size, neural_network.output_size);
+            println!("Initial accuracy on test set: {}", neural_network.accuracy(&x_test, &y_test));
+            break;
+        } else {
+            let model_path = PathBuf::from(input);
+            neural_network = match NeuralNetwork::load(&model_path) {
+                Ok(nn) => nn,
+                    Err(e) => {
+                        eprintln!("Failed to load the neural network from '{}': {}", model_path.display(), e);
+                        continue;
+                    }
+            };
+            println!("Neural network loaded successfully from '{}'.", model_path.display());
+            println!("Input size: {}, hidden size: {}, output size: {}.", 
+                neural_network.input_size, neural_network.hidden_size, neural_network.output_size);
+            println!("Accuracy on test set: {}", neural_network.accuracy(&x_test, &y_test));
+            break;
         }
     }
 
-    let epochs = epochs.unwrap();
-    let learning_rate = 0.01;
+    // User prompt for training the network
+    loop {
+        input = get_user_input("\nPress Enter to skip training or enter the number of epochs to train (positive integer): ");
 
-    println!("\nTraining neural network with {} epochs and learning rate of {}", epochs, learning_rate);
-
-    neural_network.train(&x_train, &y_train, epochs, learning_rate);
-
-    println!("\nTraining complete");
-
-    // Calculate accuracy on the test dataset
-    let test_accuracy = neural_network.accuracy(&x_test, &y_test);
-    println!("\nTest accuracy: {:.2}%", test_accuracy);
-
-    //let model_path = PathBuf::from(format!("./model.bin"));
-    //neural_network.save(&model_path);
+        if input.is_empty() {
+            println!("Training skipped.");
+            break;
+        }
     
-    // Add option to load and save models
-    // Add user input to train the model, add options for epochs, learning rate and at auto mode which detects when the model has converged
-    // Add option to predict on a single image after another model has been loaded
+        match input.parse::<usize>() {
+            Ok(epochs) if epochs > 0 => {
+                let learning_rate = 0.01;
+                println!("Training neural network with {} epochs and learning rate of {}...", epochs, learning_rate);
+                neural_network.train(&x_train, &y_train, epochs, learning_rate);
+                println!("Training complete! Final accuracy on test set: {}", neural_network.accuracy(&x_test, &y_test));
+                break;
+            }
+            _ => {
+                println!("Invalid input. Please enter a valid positive integer.");
+            }
+        }
+    }
+    
+    // User prompt for saving the model
+    input = get_user_input("Press Enter to skip saving the model or provide a file path to save the model: ");
+
+    if !input.is_empty() {
+        let model_path = PathBuf::from(input);
+        neural_network.save(&model_path).expect("Failed to save the neural network");
+    
+        println!("Neural network saved successfully to '{}'.", model_path.display());
+    }
+
+    // Future improvements comments
+    // Add auto mode which detects when the model has converged
     // Maybe add github actions to run a test for accuracy?
     // Add option of choosing handwritten gray scale images and converting to array so it can be predicted
 
